@@ -1,269 +1,118 @@
 import React, { useState } from 'react';
-import { MOCK_BACKTESTS } from '../../lib/mock-data';
-import type { Backtest } from '../../types';
+import type { Backtest, Timeframe } from '../../types';
 import MediaGallery from '../../components/MediaGallery/MediaGallery';
 import MediaDropzone from '../../components/MediaDropzone/MediaDropzone';
+import { Drawer, Field, FormShell, Md, MdField, PageHead, State, TIMEFRAMES, inputCls } from '../../components/ui';
 import { useMediaUpload } from '../../hooks/useMediaUpload';
+import { useEntries } from '../../hooks/useEntries';
 import { cn, formatDateShort } from '../../lib/utils';
-import { Plus, X, Save, Loader2, CheckCircle2, TrendingUp, TrendingDown, Activity, Target, BarChart2, AlertTriangle } from 'lucide-react';
 
-// ─── Stat Pill ────────────────────────────────────────────────────────────────
-const Stat: React.FC<{ label: string; value: string; good?: boolean; warn?: boolean }> = ({ label, value, good, warn }) => (
-  <div className="bg-slate-800/60 rounded-xl p-3 text-center">
-    <div className={cn('text-lg font-bold', good ? 'text-emerald-400' : warn ? 'text-amber-400' : 'text-white')}>{value}</div>
-    <div className="text-slate-500 text-xs mt-0.5">{label}</div>
-  </div>
-);
+const signed = (n: number) => `${n > 0 ? '+' : ''}${n.toFixed(1)}%`;
+const METRICS = [
+  ['totalTrades', 'Сделок'], ['winRate', 'Win rate, %'], ['profitFactor', 'Profit factor'],
+  ['totalPnlPercent', 'PnL, %'], ['maxDrawdownPercent', 'Макс. просадка, %'],
+] as const;
 
-// ─── Card ─────────────────────────────────────────────────────────────────────
-const BacktestCard: React.FC<{ bt: Backtest; onClick: () => void }> = ({ bt, onClick }) => {
-  const thumb = bt.media.find(m => m.type === 'image')?.url;
-  const isGood = bt.totalPnlPercent > 0;
-
-  return (
-    <div
-      onClick={onClick}
-      className="group bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-600 hover:shadow-xl hover:shadow-black/40 transition-all duration-200 cursor-pointer"
-    >
-      {/* Thumbnail */}
-      <div className="relative h-40 bg-slate-800">
-        {thumb
-          ? <img src={thumb} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-          : <div className="w-full h-full flex items-center justify-center"><BarChart2 className="w-10 h-10 text-slate-700" /></div>
-        }
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-transparent to-transparent" />
-        <div className="absolute bottom-3 left-3">
-          <span className="text-white font-bold text-sm">{bt.ticker}</span>
-          <span className="ml-2 text-xs text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-full">{bt.timeframe}</span>
-        </div>
-      </div>
-
-      <div className="p-4 space-y-3">
-        <p className="text-white font-semibold text-sm leading-snug line-clamp-1">{bt.strategyName}</p>
-
-        {/* Mini stats */}
-        <div className="grid grid-cols-3 gap-1.5 text-center text-xs">
-          <div className="bg-slate-800 rounded-lg py-1.5">
-            <div className={cn('font-bold', bt.winRate >= 60 ? 'text-emerald-400' : bt.winRate >= 50 ? 'text-amber-400' : 'text-rose-400')}>
-              {bt.winRate}%
-            </div>
-            <div className="text-slate-600">Win</div>
-          </div>
-          <div className="bg-slate-800 rounded-lg py-1.5">
-            <div className={cn('font-bold', isGood ? 'text-emerald-400' : 'text-rose-400')}>
-              {isGood ? '+' : ''}{bt.totalPnlPercent}%
-            </div>
-            <div className="text-slate-600">PnL</div>
-          </div>
-          <div className="bg-slate-800 rounded-lg py-1.5">
-            <div className="font-bold text-slate-200">{bt.profitFactor}x</div>
-            <div className="text-slate-600">PF</div>
-          </div>
-        </div>
-
-        <p className="text-slate-600 text-xs">{formatDateShort(bt.dateFrom)} — {formatDateShort(bt.dateTo)} · {bt.totalTrades} сделок</p>
-      </div>
-    </div>
-  );
-};
-
-// ─── Detail Modal ─────────────────────────────────────────────────────────────
-const BacktestDetail: React.FC<{ bt: Backtest; onClose: () => void }> = ({ bt, onClose }) => (
-  <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm flex items-start justify-center overflow-y-auto py-8 px-4">
-    <div className="bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-3xl shadow-2xl">
-      <div className="flex items-center justify-between p-6 border-b border-slate-800">
-        <div>
-          <h2 className="text-white font-bold text-xl">{bt.strategyName}</h2>
-          <p className="text-slate-500 text-sm mt-0.5">{bt.ticker} · {bt.timeframe} · {formatDateShort(bt.dateFrom)} — {formatDateShort(bt.dateTo)}</p>
-        </div>
-        <button onClick={onClose} className="text-slate-500 hover:text-white p-1"><X className="w-5 h-5" /></button>
-      </div>
-
-      <div className="p-6 space-y-6">
-        {/* Stats grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Stat label="Win Rate" value={`${bt.winRate}%`} good={bt.winRate >= 60} warn={bt.winRate >= 50 && bt.winRate < 60} />
-          <Stat label="Total PnL" value={`${bt.totalPnlPercent > 0 ? '+' : ''}${bt.totalPnlPercent}%`} good={bt.totalPnlPercent > 0} />
-          <Stat label="Profit Factor" value={`${bt.profitFactor}x`} good={bt.profitFactor >= 2} warn={bt.profitFactor >= 1.5} />
-          <Stat label="Max Drawdown" value={`-${bt.maxDrawdownPercent}%`} warn={bt.maxDrawdownPercent > 15} />
-        </div>
-        <div className="flex gap-4 text-sm text-slate-400">
-          <span className="flex items-center gap-1.5"><Activity className="w-3.5 h-3.5" />{bt.totalTrades} сделок</span>
-        </div>
-
-        {/* Media */}
-        {bt.media.length > 0 && (
-          <div>
-            <h3 className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-3">Скриншоты</h3>
-            <MediaGallery media={bt.media} />
-          </div>
-        )}
-
-        {/* Analysis */}
-        <div>
-          <h3 className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-3">Описание и выводы</h3>
-          <div className="text-slate-300 text-sm leading-relaxed">
-            {bt.description.split('\n').map((line, i) => {
-              if (line.startsWith('## ')) return <h2 key={i} className="text-white font-bold text-base mt-4 mb-1">{line.slice(3)}</h2>;
-              if (line.startsWith('### ')) return <h3 key={i} className="text-slate-200 font-semibold text-sm mt-3 mb-1">{line.slice(4)}</h3>;
-              if (line.startsWith('- ') || line.startsWith('* ')) return <li key={i} className="ml-4 text-slate-300">{line.slice(2)}</li>;
-              if (line.startsWith('**') && line.endsWith('**')) return <p key={i} className="font-semibold text-white">{line.slice(2, -2)}</p>;
-              if (line.trim() === '') return <div key={i} className="h-1" />;
-              return <p key={i} className="text-slate-300">{line}</p>;
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
-// ─── Add Form ─────────────────────────────────────────────────────────────────
-const TIMEFRAMES = ['1m','5m','15m','30m','1h','4h','1d','1w'] as const;
-const inp = 'w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 transition-colors';
-
-const AddBacktestForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+const BacktestForm: React.FC<{ onSave: (b: Backtest) => Promise<unknown>; onClose: () => void }> = ({ onSave, onClose }) => {
   const { uploads, addFiles, uploadAll, removeFile } = useMediaUpload();
-  const [saving, setSaving] = useState(false);
-  const [done, setDone] = useState(false);
-  const [form, setForm] = useState({
-    strategyName: '', ticker: '', timeframe: '4h' as typeof TIMEFRAMES[number],
-    dateFrom: '', dateTo: '', totalTrades: '', winRate: '',
-    profitFactor: '', totalPnlPercent: '', maxDrawdownPercent: '', description: '',
+  const [f, setF] = useState({
+    strategyName: '', ticker: '', timeframe: '1h' as Timeframe, dateFrom: '', dateTo: '', description: '',
+    totalTrades: '', winRate: '', profitFactor: '', totalPnlPercent: '', maxDrawdownPercent: '',
   });
-  const set = (k: keyof typeof form, v: string) => setForm(f => ({ ...f, [k]: v }));
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    await uploadAll();
-    await new Promise(r => setTimeout(r, 600));
-    setDone(true);
-    setTimeout(onClose, 1200);
-  };
-
-  if (done) return (
-    <div className="fixed inset-0 z-40 bg-black/70 flex items-center justify-center">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 flex flex-col items-center gap-3">
-        <CheckCircle2 className="w-12 h-12 text-emerald-400" />
-        <p className="text-white font-semibold">Бэктест сохранён!</p>
-      </div>
-    </div>
-  );
+  const set = (k: keyof typeof f, v: string) => setF((s) => ({ ...s, [k]: v }));
 
   return (
-    <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm flex items-start justify-center overflow-y-auto py-8 px-4">
-      <form onSubmit={handleSave} className="bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl">
-        <div className="flex items-center justify-between p-6 border-b border-slate-800">
-          <h2 className="text-white font-bold text-lg">Новый бэктест</h2>
-          <button type="button" onClick={onClose} className="text-slate-500 hover:text-white"><X className="w-5 h-5" /></button>
-        </div>
-
-        <div className="p-6 space-y-5">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <label className="text-xs text-slate-500 font-medium block mb-1.5">Название стратегии *</label>
-              <input className={inp} placeholder="EMA 50/200 Trend Follow" value={form.strategyName} onChange={e => set('strategyName', e.target.value)} required />
-            </div>
-            <div>
-              <label className="text-xs text-slate-500 font-medium block mb-1.5">Тикер</label>
-              <input className={inp} placeholder="BTC/USDT" value={form.ticker} onChange={e => set('ticker', e.target.value.toUpperCase())} />
-            </div>
-            <div>
-              <label className="text-xs text-slate-500 font-medium block mb-1.5">Таймфрейм</label>
-              <div className="flex flex-wrap gap-1">
-                {TIMEFRAMES.map(tf => (
-                  <button key={tf} type="button" onClick={() => set('timeframe', tf)}
-                    className={cn('px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors',
-                      form.timeframe === tf ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-400' : 'bg-slate-800 border-slate-700 text-slate-400'
-                    )}>{tf}</button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs text-slate-500 font-medium block mb-1.5">Период от</label>
-              <input type="date" className={inp} value={form.dateFrom} onChange={e => set('dateFrom', e.target.value)} />
-            </div>
-            <div>
-              <label className="text-xs text-slate-500 font-medium block mb-1.5">Период до</label>
-              <input type="date" className={inp} value={form.dateTo} onChange={e => set('dateTo', e.target.value)} />
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { key: 'totalTrades', label: 'Кол-во сделок', placeholder: '47' },
-              { key: 'winRate', label: 'Win Rate %', placeholder: '68.1' },
-              { key: 'profitFactor', label: 'Profit Factor', placeholder: '2.4' },
-              { key: 'totalPnlPercent', label: 'Total PnL %', placeholder: '184.3' },
-              { key: 'maxDrawdownPercent', label: 'Max DD %', placeholder: '12.7' },
-            ].map(({ key, label, placeholder }) => (
-              <div key={key}>
-                <label className="text-xs text-slate-500 font-medium block mb-1.5">{label}</label>
-                <input type="number" step="any" className={inp} placeholder={placeholder} value={(form as any)[key]} onChange={e => set(key as any, e.target.value)} />
-              </div>
-            ))}
-          </div>
-
-          <div>
-            <label className="text-xs text-slate-500 font-medium block mb-1.5">Скриншоты / Графики</label>
-            <MediaDropzone uploads={uploads} onAddFiles={addFiles} onRemove={removeFile} />
-          </div>
-
-          <div>
-            <label className="text-xs text-slate-500 font-medium block mb-1.5">Описание и выводы</label>
-            <textarea rows={7} className={cn(inp, 'resize-y font-mono text-xs leading-relaxed')}
-              placeholder="## Правила стратегии&#10;1. ...&#10;&#10;### Выводы&#10;✅ ...&#10;❌ ..."
-              value={form.description} onChange={e => set('description', e.target.value)} />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 text-sm font-medium transition-colors">Отмена</button>
-            <button type="submit" disabled={saving} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-colors">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {saving ? 'Сохранение...' : 'Сохранить'}
-            </button>
-          </div>
-        </div>
-      </form>
-    </div>
-  );
-};
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
-const BacktestsPage: React.FC = () => {
-  const [selected, setSelected] = useState<Backtest | null>(null);
-  const [adding, setAdding] = useState(false);
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-white">Бэктесты</h2>
-          <p className="text-slate-500 text-sm mt-0.5">{MOCK_BACKTESTS.length} бэктеста</p>
-        </div>
-        <button
-          onClick={() => setAdding(true)}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Добавить бэктест
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {MOCK_BACKTESTS.map(bt => (
-          <BacktestCard key={bt.id} bt={bt} onClick={() => setSelected(bt)} />
+    <FormShell
+      onCancel={onClose}
+      onSubmit={async () => {
+        const media = await uploadAll();
+        await onSave({
+          id: crypto.randomUUID(), strategyName: f.strategyName.trim(), ticker: f.ticker.trim().toUpperCase(),
+          timeframe: f.timeframe, dateFrom: f.dateFrom, dateTo: f.dateTo, description: f.description, media,
+          totalTrades: Number(f.totalTrades), winRate: Number(f.winRate), profitFactor: Number(f.profitFactor),
+          totalPnlPercent: Number(f.totalPnlPercent), maxDrawdownPercent: Math.abs(Number(f.maxDrawdownPercent)),
+          createdAt: new Date().toISOString(),
+        });
+        onClose();
+      }}
+    >
+      <Field label="Стратегия"><input required value={f.strategyName} onChange={(e) => set('strategyName', e.target.value)} className={inputCls} /></Field>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Тикер"><input required value={f.ticker} onChange={(e) => set('ticker', e.target.value)} className={inputCls} placeholder="BTC/USDT" /></Field>
+        <Field label="Таймфрейм">
+          <select value={f.timeframe} onChange={(e) => set('timeframe', e.target.value)} className={inputCls}>{TIMEFRAMES.map((t) => <option key={t}>{t}</option>)}</select>
+        </Field>
+        <Field label="Период с"><input type="date" required value={f.dateFrom} onChange={(e) => set('dateFrom', e.target.value)} className={inputCls} /></Field>
+        <Field label="Период по"><input type="date" required value={f.dateTo} onChange={(e) => set('dateTo', e.target.value)} className={inputCls} /></Field>
+        {METRICS.map(([k, label]) => (
+          <Field key={k} label={label}><input type="number" step="any" required value={f[k]} onChange={(e) => set(k, e.target.value)} className={inputCls} /></Field>
         ))}
       </div>
+      <Field label="Выводы (Markdown)"><MdField value={f.description} onChange={(v) => set('description', v)} /></Field>
+      <Field label="Скриншоты (эквити, сделки)"><MediaDropzone uploads={uploads} onAddFiles={addFiles} onRemove={removeFile} /></Field>
+    </FormShell>
+  );
+};
 
-      {selected && <BacktestDetail bt={selected} onClose={() => setSelected(null)} />}
-      {adding && <AddBacktestForm onClose={() => setAdding(false)} />}
-    </div>
+const BacktestsPage: React.FC = () => {
+  const { list, loading, error, add, remove } = useEntries<Backtest>('backtests');
+  const [sel, setSel] = useState<Backtest | null>(null);
+  const [adding, setAdding] = useState(false);
+  const R = 'text-right pr-4 num';
+
+  return (
+    <>
+      <PageHead title="Бэктесты" count={list.length} onAdd={() => setAdding(true)} />
+      <State loading={loading} error={error} empty={!list.length} />
+      {list.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-slate-500 border-b border-slate-700">
+                <th className="py-2 pr-4 text-left font-normal">Стратегия</th><th className="pr-4 text-left font-normal">Инструмент</th>
+                <th className="pr-4 text-left font-normal">Период</th>
+                {['Сделок', 'Win rate', 'PF', 'PnL', 'Просадка'].map((h, i) => <th key={h} className={cn('font-normal text-right', i < 4 && 'pr-4')}>{h}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((b) => (
+                <tr key={b.id} onClick={() => setSel(b)} className="border-b border-slate-800 hover:bg-slate-900 cursor-pointer">
+                  <td className="py-3 pr-4 font-medium">{b.strategyName}</td>
+                  <td className="pr-4 whitespace-nowrap">{b.ticker} <span className="num text-slate-500">{b.timeframe}</span></td>
+                  <td className="pr-4 num text-slate-400 whitespace-nowrap">{formatDateShort(b.dateFrom)} – {formatDateShort(b.dateTo)}</td>
+                  <td className={R}>{b.totalTrades}</td><td className={R}>{b.winRate.toFixed(1)}%</td><td className={R}>{b.profitFactor.toFixed(2)}</td>
+                  <td className={cn(R, 'font-medium', b.totalPnlPercent >= 0 ? 'text-up' : 'text-down')}>{signed(b.totalPnlPercent)}</td>
+                  <td className="text-right num text-down">−{b.maxDrawdownPercent.toFixed(1)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {sel && (
+        <Drawer title={sel.strategyName} onClose={() => setSel(null)}>
+          <p className="text-slate-400 mb-4">{sel.ticker}, {sel.timeframe}, {formatDateShort(sel.dateFrom)} – {formatDateShort(sel.dateTo)}</p>
+          <dl className="grid grid-cols-3 gap-x-6 gap-y-4 mb-6 border-y border-slate-700 py-4">
+            {[
+              ['Сделок', String(sel.totalTrades)], ['Win rate', `${sel.winRate.toFixed(1)}%`], ['Profit factor', sel.profitFactor.toFixed(2)],
+              ['PnL', signed(sel.totalPnlPercent)], ['Просадка', `−${sel.maxDrawdownPercent.toFixed(1)}%`],
+            ].map(([k, v]) => (
+              <div key={k}><dt className="text-sm text-slate-500">{k}</dt><dd className="num text-xl font-semibold">{v}</dd></div>
+            ))}
+          </dl>
+          {sel.media.length > 0 && <div className="mb-6"><MediaGallery media={sel.media} /></div>}
+          <Md value={sel.description} />
+          <button
+            className="mt-8 text-sm text-down hover:underline"
+            onClick={async () => { if (confirm('Удалить запись? Файлы в хранилище останутся.')) { await remove(sel.id); setSel(null); } }}
+          >
+            Удалить запись
+          </button>
+        </Drawer>
+      )}
+      {adding && <Drawer title="Новый бэктест" onClose={() => setAdding(false)}><BacktestForm onSave={add} onClose={() => setAdding(false)} /></Drawer>}
+    </>
   );
 };
 

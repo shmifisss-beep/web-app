@@ -1,32 +1,18 @@
-# React + TypeScript + Vite
+# TradeVault
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Журнал сделок: разборы позиций и бэктесты со скриншотами и видео.
+React 19 + Vite + Tailwind 4, хранилище — Cloudflare Worker + R2.
 
-Currently, two official plugins are available:
+## Запуск
+    npm install && npm run dev
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Без `VITE_CF_UPLOAD_URL` приложение работает локально: записи в localStorage, файлы до 3 МБ как data-URL.
 
-## React Compiler
+## Cloudflare
+    cd cloudflare-worker
+    wrangler r2 bucket create media-storage
+    wrangler secret put AUTH_TOKEN
+    wrangler deploy
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+В `.env` (по образцу `.env.example`) укажите адрес воркера. При первом входе приложение спросит токен.
+Записи хранятся в R2 как `_data/positions.json` и `_data/backtests.json`.

@@ -24,13 +24,13 @@ const MediaDropzone: React.FC<MediaDropzoneProps> = ({ uploads, onAddFiles, onRe
         {...getRootProps()}
         className={cn(
           'border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-colors',
-          isDragActive ? 'border-indigo-500 bg-indigo-500/5' : 'border-slate-700 hover:border-slate-600 hover:bg-slate-800/30',
+          isDragActive ? 'border-accent bg-accent/5' : 'border-slate-700 hover:border-slate-600 hover:bg-slate-800/30',
         )}
       >
         <input {...getInputProps()} />
-        <Upload className={cn('w-7 h-7 mx-auto mb-2', isDragActive ? 'text-indigo-400' : 'text-slate-600')} />
+        <Upload className={cn('w-7 h-7 mx-auto mb-2', isDragActive ? 'text-accent' : 'text-slate-600')} />
         {isDragActive
-          ? <p className="text-indigo-400 text-sm font-medium">Отпусти файлы...</p>
+          ? <p className="text-accent text-sm font-medium">Отпусти файлы...</p>
           : <>
               <p className="text-slate-400 text-sm font-medium mb-1">Перетащи скриншоты или видео</p>
               <p className="text-slate-600 text-xs">PNG, JPG, MP4, MOV — до 200MB</p>
@@ -51,7 +51,7 @@ const MediaDropzone: React.FC<MediaDropzoneProps> = ({ uploads, onAddFiles, onRe
               )}
               <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                 {u.status === 'uploading' && <Loader2 className="w-4 h-4 text-white animate-spin" />}
-                {u.status === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                {u.status === 'success' && <CheckCircle2 className="w-4 h-4 text-up" />}
               </div>
               {u.status !== 'uploading' && (
                 <button
