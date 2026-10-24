@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { uploadToCloudflareR2 } from '../lib/cloudflareR2';
 
 export type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
 
@@ -11,7 +12,6 @@ export interface UploadedFile {
   error?: string;
 }
 
-// In real app — upload to Cloudflare R2 or Supabase Storage
 export function useMediaUpload() {
   const [uploads, setUploads] = useState<UploadedFile[]>([]);
 
@@ -25,18 +25,30 @@ export function useMediaUpload() {
     setUploads((prev) => [...prev, ...newUploads]);
   }, []);
 
-  const uploadAll = useCallback(async () => {
-    // Simulate upload for now
-    setUploads((prev) => prev.map((u) => ({ ...u, status: 'uploading' })));
-    await new Promise((r) => setTimeout(r, 1500));
+  const uploadFile = useCallback(async (id: string, file: File) => {
     setUploads((prev) =>
-      prev.map((u) => ({
-        ...u,
-        status: 'success',
-        url: u.preview, // In real app: returned URL from storage
-      }))
+      prev.map((u) => (u.id === id ? { ...u, status: 'uploading', error: undefined } : u))
     );
+
+    try {
+      const publicUrl = await uploadToCloudflareR2(file);
+      setUploads((prev) =>
+        prev.map((u) => (u.id === id ? { ...u, status: 'success', url: publicUrl } : u))
+      );
+      return publicUrl;
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Upload failed';
+      setUploads((prev) =>
+        prev.map((u) => (u.id === id ? { ...u, status: 'error', error: errorMsg } : u))
+      );
+      return null;
+    }
   }, []);
+
+  const uploadAll = useCallback(async () => {
+    const pending = uploads.filter((u) => u.status === 'idle' || u.status === 'error');
+    await Promise.all(pending.map((u) => uploadFile(u.id, u.file)));
+  }, [uploads, uploadFile]);
 
   const removeFile = useCallback((id: string) => {
     setUploads((prev) => {
@@ -53,5 +65,5 @@ export function useMediaUpload() {
     setUploads([]);
   }, [uploads]);
 
-  return { uploads, addFiles, uploadAll, removeFile, clearAll };
+  return { uploads, addFiles, uploadFile, uploadAll, removeFile, clearAll };
 }
